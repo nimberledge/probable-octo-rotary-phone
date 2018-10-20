@@ -66,14 +66,14 @@ type exp =  (* Exceptions will be added in later MPs *)
  | VarExp of string                    (* variables *)
  | ConstExp of const                   (* constants *)
  | MonOpAppExp of mon_op * exp         (* % exp1
-                    where % is a builtin monadic operator *) 
- | BinOpAppExp of bin_op * exp * exp   (* exp1 % exp2                         
+                    where % is a builtin monadic operator *)
+ | BinOpAppExp of bin_op * exp * exp   (* exp1 % exp2
                     where % is a builtin binary operator *)
  | IfExp of exp * exp * exp            (* if exp1 then exp2 else exp3 *)
- | AppExp of exp * exp                 (* exp1 exp2 *) 
+ | AppExp of exp * exp                 (* exp1 exp2 *)
  | FunExp of string * exp              (* fun x -> exp1 *)
  | LetInExp of string * exp * exp      (* let x = exp1 in exp2 *)
- | LetRecInExp of string * string * exp * exp 
+ | LetRecInExp of string * string * exp * exp
                                        (* let rec f x = exp1 in exp2 *)
 
 
@@ -83,8 +83,8 @@ let rec string_of_exp = function
  | IfExp(e1,e2,e3)->"if " ^ (string_of_exp e1) ^
                  " then " ^ (string_of_exp e2) ^
                  " else " ^ (string_of_exp e3)
- | MonOpAppExp (m,e) ->  (string_of_mon_op m) ^ " " ^ (paren_string_of_exp e) 
- | BinOpAppExp (b,e1,e2) -> 
+ | MonOpAppExp (m,e) ->  (string_of_mon_op m) ^ " " ^ (paren_string_of_exp e)
+ | BinOpAppExp (b,e1,e2) ->
    (match b
     with CommaOp ->
            ("(" ^ (paren_string_of_exp e1) ^ (string_of_bin_op b) ^
@@ -92,7 +92,7 @@ let rec string_of_exp = function
       | _ -> ((paren_string_of_exp e1) ^ " " ^ (string_of_bin_op b)
               ^ " " ^ (paren_string_of_exp e2)))
  | AppExp(e1,e2) ->
-     (non_app_paren_string_of_exp e1) ^ " " ^ (paren_string_of_exp e2) 
+     (non_app_paren_string_of_exp e1) ^ " " ^ (paren_string_of_exp e2)
  | FunExp (x,e) ->  ("fun " ^ x ^ " -> " ^ (string_of_exp e))
  | LetInExp (x,e1,e2) ->
      ("let "^x^" = "^ (string_of_exp e1) ^ " in " ^ (string_of_exp e2))
@@ -111,7 +111,7 @@ let print_exp exp = print_string (string_of_exp exp)
 
 let rec mergesort list =
 let split l =
-  let rec split_aux l left right = 
+  let rec split_aux l left right =
     match l,left,right with
     | ([] | [_]),_,_ -> (List.rev left),right
     | (_::_::t),_,h::right_t -> split_aux t (h::left) right_t
@@ -128,12 +128,12 @@ let rec merge l1 l2 =
     else merge t1 l2
   in match list with
   | ([] | [_]) as l -> l
-  | l ->  let left,right = split l in 
+  | l ->  let left,right = split l in
           merge (mergesort left) (mergesort right)
 
 type cont_var = Kvar                      (* _k *)
 
-type cps_cont = 
+type cps_cont =
    External
  | ContVarCPS of cont_var                 (* _k *)
  | FnContCPS of string * exp_cps          (* FN x -> exp_cps *)
@@ -147,7 +147,7 @@ and exp_cps =
  | AppCPS of cps_cont * string * string                   (* x y K *)
  | FunCPS of cps_cont * string * cont_var * exp_cps
                                         (* K (FUN x _k -> [[exp]]_k) *)
- | FixCPS of cps_cont * string * string * cont_var * exp_cps 
+ | FixCPS of cps_cont * string * string * cont_var * exp_cps
                                         (* K (FIX f. FUN x _k -> [[exp]]_k) *)
 
 let string_of_cont_var Kvar = "_k"
@@ -160,7 +160,7 @@ let rec string_of_exp_cps ext_cps =
     | BinOpAppCPS (k,b,r,s) ->
        paren_string_of_cps_cont k ^ "(" ^ r ^ " " ^ string_of_bin_op b ^ " " ^ s ^")"
     | IfCPS (b,e1,e2) -> "IF "^b^" THEN "^ string_of_exp_cps e1 ^" ELSE "^string_of_exp_cps e2
-    | AppCPS (k,r,s) -> "("^r ^ " " ^ s ^ " " ^ paren_string_of_cps_cont k ^ ")" 
+    | AppCPS (k,r,s) -> "("^r ^ " " ^ s ^ " " ^ paren_string_of_cps_cont k ^ ")"
     | FunCPS (k, x, Kvar, e) ->  (paren_string_of_cps_cont k) ^ " (" ^ (string_of_funk x e) ^ ")"
     | FixCPS (k,f,x,Kvar, e) -> paren_string_of_cps_cont k ^
                             "(FIX "^ f ^". " ^ (string_of_funk x e) ^ ")"
@@ -185,8 +185,8 @@ let rec freeVarsInExpCPS cont =
     | AppCPS (k,x1,x2) -> x1::x2::(freeVarsInContCPS k)
     | FunCPS (k,x,Kvar,e) ->
       (freeVarsInContCPS k) @ (List.filter (fun y -> not (x = y)) (freeVarsInExpCPS e))
-    | FixCPS (k,f,x,Kvar,e) -> (freeVarsInContCPS k) @ 
-      (List.filter (fun y -> not ((x = y) || (f = y))) (freeVarsInExpCPS e)) 
+    | FixCPS (k,f,x,Kvar,e) -> (freeVarsInContCPS k) @
+      (List.filter (fun y -> not ((x = y) || (f = y))) (freeVarsInExpCPS e))
 and
    freeVarsInContCPS k =
    match k with External -> []
@@ -206,8 +206,8 @@ let int_to_string n =
                             | n::ns -> (String.make 1 (Char.chr (n + 97))) ^ aux ns
         in aux (int_to_int_26_list n)
 
-let freshFor lst = 
-    let rec fresh_ n = 
+let freshFor lst =
+    let rec fresh_ n =
         if List.mem (int_to_string n) lst
            then fresh_ (n+1)
         else int_to_string n
@@ -221,7 +221,7 @@ let rec exp_cps_norm_aux var_subst free_vars exp_cps =
  match exp_cps with
    VarCPS (kappa, var_name) ->
     let kappa' = cps_cont_norm_aux var_subst free_vars kappa
-    in VarCPS (kappa',var_subst var_name) 
+    in VarCPS (kappa',var_subst var_name)
  | ConstCPS (kappa, const) ->
    let kappa' = cps_cont_norm_aux var_subst free_vars kappa
     in ConstCPS (kappa', const)
@@ -239,11 +239,11 @@ let rec exp_cps_norm_aux var_subst free_vars exp_cps =
  | AppCPS (kappa, funvar, argvar) ->
    let kappa' = cps_cont_norm_aux var_subst free_vars kappa
    in AppCPS (kappa', var_subst funvar, var_subst argvar)
- | FunCPS (kappa, x, k, bodyexpcps) -> 
+ | FunCPS (kappa, x, k, bodyexpcps) ->
    let kappa' = cps_cont_norm_aux var_subst free_vars kappa
    in
    (*we will keep x; it is "user supplied"*)
-   let new_var_subst name = if name = x then name else var_subst name 
+   let new_var_subst name = if name = x then name else var_subst name
    in
    let bodyexpcps' = exp_cps_norm_aux new_var_subst (x::free_vars) bodyexpcps
    in FunCPS (kappa', x, k, bodyexpcps')
@@ -252,7 +252,7 @@ let rec exp_cps_norm_aux var_subst free_vars exp_cps =
    in
    (*we will keep f and x; they are "user supplied"*)
    let new_var_subst name =
-       if name = x || name = f then name else var_subst name 
+       if name = x || name = f then name else var_subst name
    in
    let bodyexpcps' = exp_cps_norm_aux new_var_subst (f::x::free_vars) bodyexpcps
    in FixCPS (kappa', f, x, k, bodyexpcps')
@@ -265,7 +265,7 @@ and cps_cont_norm_aux var_subst free_vars kappa =
    let newy = freshFor free_vars
    in
    let new_var_subst name =
-       if name = y then newy else var_subst name 
+       if name = y then newy else var_subst name
    in
    let bodyexpcps' = exp_cps_norm_aux new_var_subst (newy::free_vars) bodyexpcps
    in FnContCPS (newy, bodyexpcps')

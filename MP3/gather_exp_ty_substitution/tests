@@ -1,0 +1,495 @@
+open Common
+let rubric_version = "1.0"
+let rubric_title = "CS421 Fall 2015 ML3"
+
+(**************************************************************************
+ * You can add new test cases by adding new elements to the following lists
+ * Format is:
+ * TEST<X>ARG(<weight>, <function_name>, <arg1>, <arg2>, ..., <argX>)
+ *
+ * <X> is the number of argument that the function being tested takes.
+ **************************************************************************)
+
+let infer_exp tree =
+ Common.canon (Common.infer_exp Solution.gather_exp_ty_substitution [] tree);;
+let infer_exp_stu tree =
+ Common.canon (Common.infer_exp Student.gather_exp_ty_substitution  [] tree);;
+
+let infer2_exp gamma tree =
+    Common.canon
+    (Common.infer_exp Solution.gather_exp_ty_substitution gamma tree);;
+let infer2_exp_stu gamma tree =
+    Common.canon
+    (Common.infer_exp Student.gather_exp_ty_substitution  gamma tree);;
+
+let canon_gather gamma exp mty =
+  let result =
+    Common.canon
+    (match Solution.gather_exp_ty_substitution gamma exp mty with
+        Some (proof, sigma) -> Some(monoTy_lift_subst sigma mty,
+     	  	  	         proof_lift_subst sigma proof)
+      | None -> None)
+  in (reset(); result)
+
+let canon_gather_stu gamma exp mty =
+  let result =
+    Common.canon
+    (match Student.gather_exp_ty_substitution gamma exp mty with
+        Some (proof, sigma) -> Some(monoTy_lift_subst sigma mty,
+     	  	  	         proof_lift_subst sigma proof)
+      | None -> None)
+  in (reset(); result)
+
+
+let canon_list_gather =
+    List.map (fun (gamma, exp, mty) -> canon_gather gamma exp mty)
+
+let canon_list_gather_stu =
+    List.map (fun (gamma, exp, mty) -> canon_gather_stu gamma exp mty)
+
+let con_exp1 = ConstExp(BoolConst true);;
+
+(* Some variables *)
+let var_exp1 = VarExp "f";;
+let var_exp2 = VarExp "zyz";;
+let var_exp3 = VarExp "11111";;
+let var_exp4 = VarExp "p";;
+let any_var = VarExp "any"
+
+(* Some types *)
+let all_ty = ([(-117)],TyVar (-117))
+let full_poly_ty = ([0], mk_fun_ty bool_ty (TyVar 0))
+let part_poly_ty = ([(-13)], mk_fun_ty (TyVar (-11)) (TyVar (-13)))
+let mono_ty = mk_fun_ty bool_ty (TyVar (-12))
+let full_inst_ty = mk_fun_ty bool_ty (mk_fun_ty int_ty (TyVar (-11)))
+let poly_int_ty = ([], int_ty)
+let simple_pair_ty1 = mk_pair_ty int_ty (TyVar (-12))
+let simple_pair_ty2 = mk_pair_ty (TyVar (-12)) bool_ty
+let simple_pair_ty3 = mk_pair_ty int_ty bool_ty
+
+(* Some environments *)
+let env0 = [];;
+
+(* f:all a. bool -> a *)
+let env1 = sum_env (make_env "f" full_poly_ty) (make_env "any" all_ty)
+
+(* [zyz: bool -> b; f:all a. bool -> a] *)
+let env2 = sum_env (make_env "zyz" ([],mono_ty)) env1
+
+ (* f:all a. bool -> a; zyz:all b. a -> b; "11111":all . int *)
+let env3 = [("f", full_poly_ty); ("zyz", part_poly_ty); ("11111", poly_int_ty); ("any", all_ty)] 
+let envp = [("zyz", part_poly_ty); ("p", ([-12], simple_pair_ty1)); ("11111", poly_int_ty); ("any", all_ty)]
+(* simple expressions *)
+
+(* 62 :: [] *)
+let bin_exp1 = BinOpAppExp(ConsOp, ConstExp (IntConst 62), ConstExp NilConst);;
+
+(* (62 - 17) + (12 * (0 / 1)) *)
+let int_binop_exp =
+    BinOpAppExp
+    (IntPlusOp,
+     BinOpAppExp(IntMinusOp,ConstExp(IntConst 62), ConstExp(IntConst 17)),
+     BinOpAppExp(IntTimesOp, ConstExp(IntConst 12),
+	         BinOpAppExp(IntDivOp,ConstExp(IntConst 0),
+                             ConstExp(IntConst 1))))
+
+(* (62. -. 17.) +. (12. *. (0. /. 1.)) *)
+let float_binop_exp =
+    BinOpAppExp
+    (FloatPlusOp,
+     BinOpAppExp(FloatMinusOp,ConstExp(FloatConst 62.),ConstExp(FloatConst 17.)),
+     BinOpAppExp(FloatTimesOp,ConstExp(FloatConst 12.),
+	         BinOpAppExp(FloatDivOp,ConstExp(FloatConst 0.),
+                             ConstExp(FloatConst 1.))))
+
+let arith_binop_exp = BinOpAppExp(CommaOp, int_binop_exp, float_binop_exp)
+
+(* Not enough points for this
+let rem_binop_exp =
+BinOpAppExp(GreaterOp,
+BinOpAppExp(EqOp,
+BinOpAppExp(ConsOp, 
+BinOpAppExp(CommaOp, ConstExp (BoolConst false),
+BinOpAppExp(ConcatOp,ConstExp(StringConst "a"),ConstExp(StringCons "a"))),
+ConstExp NilConst),
+ConstExp NilConst),
+ConstExp (BoolConst true))
+*)
+
+let poly_binop_exp =
+BinOpAppExp(GreaterOp,
+BinOpAppExp(EqOp,
+BinOpAppExp(ConsOp, 
+BinOpAppExp(CommaOp, var_exp1,
+BinOpAppExp(ConcatOp,any_var,ConstExp(StringConst "a"))),
+any_var),
+ConstExp NilConst),
+any_var)
+
+let fail_bin1 = BinOpAppExp(IntTimesOp, ConstExp(FloatConst 62.), ConstExp NilConst)
+
+let fail_bin2 = BinOpAppExp(CommaOp,var_exp2, any_var)
+let fail_bin2_ty = mk_pair_ty mono_ty int_ty
+(* use env3 *)
+
+let fail_bin3 = BinOpAppExp(CommaOp,any_var, var_exp2)
+let fail_bin3_ty = mk_pair_ty mono_ty int_ty
+
+(* (-42) *)
+let mon_exp1 = MonOpAppExp(IntNegOp, ConstExp(IntConst 42));;
+
+let monop_exp =
+MonOpAppExp(IntNegOp,
+MonOpAppExp(FstOp, 
+MonOpAppExp(SndOp, 
+MonOpAppExp(HdOp, 
+MonOpAppExp(TlOp, ConstExp NilConst)))))
+
+(* if true then 62 else 252 *)
+let if_exp1 = IfExp(ConstExp(BoolConst true),
+                    ConstExp(IntConst 62), ConstExp(IntConst 252));;
+
+(* if if false then true else false then f else f *)
+let if_exp2 = IfExp(IfExp(ConstExp(BoolConst false),
+                           ConstExp(BoolConst true),
+                           ConstExp(BoolConst false)),
+                     var_exp1, var_exp1)
+(* use with env1 *)
+
+(* if [] then [] else [] *)
+let if_exp3 = IfExp(ConstExp(NilConst),
+                    ConstExp(NilConst), ConstExp(NilConst));;
+
+(* if true then (if true then 32.5 else 25.1) else if_exp1 *)
+let if_exp4 = IfExp(ConstExp(BoolConst true),
+                    IfExp(ConstExp(BoolConst true),
+                    ConstExp(FloatConst 32.5), ConstExp(FloatConst 25.1)),
+		    if_exp1)
+                    
+
+(* [b:'a; c:'a * 'b; d : 'b * 'c] |- if b then c else d : 'e *)
+
+let if_exp5 = IfExp(VarExp "b", VarExp "c", VarExp "d")
+let if_exp5_env =
+ [("b",([],TyVar (-1)));
+  ("c",([],mk_pair_ty (TyVar (-1))  (TyVar (-2))));
+  ("d", ([],mk_pair_ty (TyVar (-2))  (TyVar (-3))))]
+
+let if_exp6 = IfExp(any_var,
+                    ConstExp(IntConst 62), ConstExp(IntConst 252));;
+
+let if_exp7 = IfExp(ConstExp(BoolConst false),any_var,ConstExp(IntConst 252));;
+let if_exp8 = IfExp(ConstExp(BoolConst false),ConstExp(IntConst 252),any_var);;
+let if_exp9 = IfExp(ConstExp(BoolConst false),var_exp1,var_exp1)
+
+(* if false then []
+   else if false then []
+        else if false then [] else if false then [] else (epsilon = f) *)
+let if_exp10 = IfExp(ConstExp(BoolConst false),
+                    ConstExp(NilConst), IfExp(ConstExp(BoolConst false),
+                    ConstExp(NilConst), IfExp(ConstExp(BoolConst false),
+                    ConstExp(NilConst), IfExp(ConstExp(BoolConst false),
+                    ConstExp(NilConst), ConstExp NilConst))));;
+
+let fun_exp1 = FunExp("x", BinOpAppExp(IntPlusOp, VarExp "x", VarExp "x"));;
+let fun_exp2 = FunExp("zyz", BinOpAppExp(IntPlusOp, BinOpAppExp(IntPlusOp, VarExp "f", VarExp "zyz"), VarExp "f"));;
+let fun_exp3 = FunExp("zyz", ConstExp (BoolConst true));;
+let fun_exp4 = FunExp("x", BinOpAppExp(IntPlusOp, VarExp "x", VarExp "zyz"));;
+let fun_exp5 = FunExp("zyz", BinOpAppExp(ConsOp, BinOpAppExp(IntPlusOp, VarExp "zyz", VarExp "zyz"), VarExp "zyz"));;
+let fun_exp6 = FunExp("xx", FunExp("yy", BinOpAppExp(ConsOp, VarExp "yy", VarExp "xx")));;
+
+let fun_app_exp = FunExp("xx", FunExp("yy", AppExp(VarExp "xx", VarExp "yy")));;
+let app_fun_exp = AppExp(FunExp("ab", VarExp "ab"), FunExp("cd", ConstExp(IntConst 3)));;
+let app_fun_app_exp = AppExp(fun_app_exp, app_fun_exp);;
+
+
+let app_exp1 = AppExp(FunExp("x", BinOpAppExp(IntPlusOp, VarExp "x", VarExp "x")),
+          ConstExp(IntConst 62));;
+let app_exp2 = AppExp(any_var, ConstExp(IntConst 1));;
+let app_exp3 = AppExp(var_exp2, any_var);;
+let app_exp4 = AppExp(var_exp4,  ConstExp(IntConst 1));;
+let app_exp5 = AppExp(var_exp2, ConstExp(IntConst 1));;
+let app_exp6 = AppExp(var_exp1, var_exp2);;
+
+let raise_exp1 = RaiseExp(IfExp(ConstExp(BoolConst true), ConstExp(IntConst 62),
+                  ConstExp(IntConst 252)));;
+let raise_exp2 = RaiseExp(ConstExp(BoolConst true));;
+let raise_exp3 = RaiseExp any_var;;
+let raise_exp4 = RaiseExp (ConstExp (IntConst 3));;
+
+let letin_exp1 = LetInExp("x", ConstExp(IntConst 7),
+            BinOpAppExp(IntPlusOp, VarExp "x", VarExp "x"));;
+let letin_exp2 = LetInExp("ww", ConstExp(IntConst 1), ConstExp(BoolConst true));;
+let letin_exp3 = LetInExp("xz", ConstExp(BoolConst true), VarExp "xz");;
+let letin_exp4 = LetInExp("zyz", any_var, BinOpAppExp(ConsOp, var_exp2, var_exp2));;
+let letin_exp5 = LetInExp("uv", var_exp2, ConstExp(IntConst 1));;
+let letin_exp6 = LetInExp("uv", ConstExp(IntConst 1), var_exp2);;
+let id_body = IfExp(AppExp(VarExp "id", ConstExp(BoolConst true)),
+                    FunExp("id", BinOpAppExp(IntPlusOp, VarExp "id", ConstExp(IntConst 1))),
+		    VarExp "id");;
+let letin_exp7 = LetInExp("id", FunExp("x", VarExp "x"), id_body);;
+
+let letrecin_exp1 = LetRecInExp("length", "list",
+                    IfExp(BinOpAppExp(EqOp, VarExp "list", ConstExp NilConst),
+                          ConstExp (IntConst 0),
+                          BinOpAppExp(IntPlusOp, ConstExp (IntConst 1),
+                                     (AppExp(VarExp "length",
+                                              MonOpAppExp(TlOp,VarExp "list"))))),
+                    AppExp(VarExp "length", 
+                           BinOpAppExp(ConsOp, 
+                                        ConstExp (IntConst 2),
+                                        ConstExp NilConst)));;
+let letrecin_exp2 = LetRecInExp("f", "z", ConstExp(BoolConst true), ConstExp(IntConst 1));;
+let letrecin_exp3a = LetRecInExp("f", "z", var_exp2, ConstExp (IntConst 1));;  (* Use with env1 *)
+let letrecin_exp3b = LetRecInExp("f", "z", ConstExp (IntConst 1), var_exp2);;  (* Use with env1 *)
+let letrecin_exp4a = LetRecInExp("f", "z", AppExp(var_exp1, (AppExp(var_exp1, VarExp "z"))),
+                                 BinOpAppExp(CommaOp, AppExp(var_exp1, ConstExp (IntConst 1)),
+                                                      AppExp(var_exp1, ConstExp (BoolConst true))));;
+let letrecin_exp4b = LetRecInExp("f", "z", AppExp(var_exp1, (AppExp(var_exp1, VarExp "z"))),
+                                 BinOpAppExp(IntPlusOp, AppExp(var_exp1, ConstExp (BoolConst true)),
+				 			ConstExp (IntConst 1)));;
+let letrecin_exp5 =  LetRecInExp("id", "x", VarExp "x", id_body);;
+
+
+let trywith_exp1 =
+    TryWithExp(BinOpAppExp(ConcatOp, ConstExp(StringConst "What"),
+                          RaiseExp(ConstExp(IntConst 3))),
+              Some 0, ConstExp(StringConst " do you mean?"),
+              [(None, ConstExp(StringConst " the heck?")) ]);;
+
+let trywith_exp2 = TryWithExp(var_exp2, Some 0, ConstExp(IntConst 1), []);;
+
+let trywith_exp3 = TryWithExp(ConstExp(BoolConst true), Some 0, var_exp2, []);;
+let trywith_exp4 = TryWithExp(ConstExp(BoolConst true),
+                              Some 0, ConstExp(BoolConst false), [(Some 1, var_exp2)]);;
+let trywith_exp5 = TryWithExp(ConstExp(BoolConst true), Some 0, ConstExp(IntConst 1), []);;
+let trywith_exp6 = TryWithExp(ConstExp(BoolConst true), Some 0, ConstExp(BoolConst true),
+                             [(None, ConstExp(IntConst 1))]);;
+let trywith_exp7 =
+    TryWithExp(VarExp "zyz",
+              Some 0, VarExp "f",
+              [(None, VarExp "f"); (Some 0,VarExp "zyz");(Some 1,VarExp "zyz")]);;
+(*
+let trywith_exp4 =
+    TryWithExp(LetRecInExp("Rec","f",FunExp("x", BinOpAppExp(EqOp, FunExp("f", BinOpAppExp(EqOp, ConstExp(NilConst), VarExp "f")), FunExp("x", BinOpAppExp(EqOp, VarExp "x", VarExp "f")))),LetRecInExp ("Rec","x",VarExp "x",AppExp (VarExp "Rec",VarExp "f")),
+              Some 0, let_exp2,
+              [(Some 0, let_exp1); (Some 0, let_exp2);(Some 0, let_exp3)]));;
+let trywith_exp5 =
+    TryWithExp(LetRecInExp("Rec","f",FunExp("x", BinOpAppExp(EqOp, FunExp("f", BinOpAppExp(EqOp, ConstExp(NilConst), VarExp "f")), FunExp("x", BinOpAppExp(EqOp, VarExp "x", VarExp "f")))),LetRecInExp ("Rec","x",VarExp "x",TryWithExp(LetExp(Rec("Rec","f",FunExp("x", BinOpAppExp(EqOp, FunExp("f", BinOpAppExp(EqOp, ConstExp(NilConst), VarExp "f")), FunExp("x", BinOpAppExp(EqOp, VarExp "x", VarExp "f"))))),LetRecInExp ("Rec","x",VarExp "x",AppExp (VarExp "Rec",VarExp "f"))),
+              Some 0, trywith_exp2,
+              [(Some 0, trywith_exp4); (Some 0, trywith_exp1);(Some 0, trywith_exp3)]))),
+              Some 0, trywith_exp2,
+              [(Some 0, trywith_exp4); (Some 0, trywith_exp1);(Some 0, trywith_exp3)]);;
+*)
+
+
+(* This list is for regular problems *)
+let rubric =
+[
+	TEST2ARG_TWOFUN(0, infer2_exp, infer2_exp_stu, env0, con_exp1);
+
+
+(* Tests for variables:
+   infer with x is in the environment with a polymorphic type
+   infer with x is in the environment with a monomorphic type (expendable?)
+   infer with x not in the environment
+   gather with x of type an instance of a polymorphic type
+   gather with x of type not an instance of a polymorhic type
+*)
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env1, var_exp1);
+        TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, var_exp2);
+        TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, var_exp3);
+        TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env2, var_exp1, full_inst_ty);
+        TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env3, var_exp2, full_inst_ty);
+
+(*Tests for binop:
+  Simple test for cons with specializing its polymorphism
+  Combination of all int operations and all float operations
+  //Combination of all other operations // combined with the next
+  True use of polymorphism on both sides
+  Direct failure of arguments to be appropriate for operation
+  Left failure pass-through
+  Right failure pass-through
+*)
+  
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, bin_exp1);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, int_binop_exp);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, float_binop_exp);
+(*	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, rem_binop_exp); *)
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, poly_binop_exp);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, fail_bin1);
+        TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env3, fail_bin2, fail_bin2_ty);
+        TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env2, fail_bin3, fail_bin3_ty);
+
+(* 
+   Build one test of all monops
+   List of direct failures and of passing failures through 
+*)
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, mon_exp1);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, monop_exp);
+	TEST1ARG_TWOFUN(1, canon_list_gather, canon_list_gather_stu,
+          [(env0,MonOpAppExp(IntNegOp, (ConstExp NilConst)), TyVar 0);
+           (env0,MonOpAppExp(FstOp, (ConstExp NilConst)), TyVar 0);
+           (env0,MonOpAppExp(SndOp, (ConstExp NilConst)), TyVar 0);
+           (env0,MonOpAppExp(HdOp, (ConstExp (IntConst 13))), TyVar 0);
+           (env0,MonOpAppExp(TlOp, (ConstExp (IntConst 13))), TyVar 0);
+           (env1,MonOpAppExp(IntNegOp, var_exp3), TyVar 0);
+           (env1,MonOpAppExp(FstOp, var_exp3), TyVar 0);
+           (env1,MonOpAppExp(SndOp, var_exp3), TyVar 0);
+           (env1,MonOpAppExp(HdOp, var_exp3), TyVar 0);
+           (env1,MonOpAppExp(TlOp, var_exp3), TyVar 0)]);
+
+(*
+ Simple check with simple boolean guard and same-typed branches
+ Non-constant boolean guard
+ Non-boolean guard
+ Different types for then and else
+ Type inference required in each part, with overlaps
+ Pass-through of failure in boolean guard
+ Pass-through of failure in then branch
+ Pass-through of failure in else branch
+ if-then-else constrained and possible (through nesting)
+ if-then-else constrained and not possible
+*)
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, if_exp1);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env1, if_exp2);
+        TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, if_exp3);
+        TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, if_exp4);
+	TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, if_exp5_env, if_exp5, (TyVar (-17)));
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, if_exp6);
+        TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, if_exp7);
+        TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, if_exp8);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, if_exp9);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, if_exp10);
+
+(*
+basic function with inferencing, empty env
+basic function with inferencing, x present in environment at wrong type
+fun x -> true : int -> bool
+fun x -> true : int -> int
+fun x -> true : bool
+fun x -> (type failure) (f + y) + f, f not in env
+fun x -> (x + x ) :: x // to make sure x was not added polymorpically 
+fun x -> fun y -> x :: y
+// two more points will be combined application
+*)
+
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, fun_exp1);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, fun_exp1);
+	TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env0, fun_exp3, (mk_fun_ty int_ty bool_ty));
+	TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env0, fun_exp3, (mk_fun_ty int_ty int_ty));
+	TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env0, fun_exp3, bool_ty);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, fun_exp2);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, fun_exp5);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, fun_exp6);
+
+(* 
+fun xx -> (fun yy -> xx yy)
+(fun ab -> ab)(fun cd -> 3)
+*)
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, fun_app_exp);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, app_fun_exp);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, app_fun_app_exp);
+
+(* 
+(fun x -> (x + x)) 62  // makes a fourth that combines fun and app so tow for fun and two for app
+f 1 (in env1 - function applied to arg with instantitation in function)
+zyz any (in env2 - function applied to arg with instiantion in arg)
+p 1 (where p is not of function in envp)
+zyz 1 (in env2 - arg has the wrong type)
+x (x 7) in {x : a}
+[(zyz f) : int_ty in env3
+ (zyz f) : int_ty in env2
+ (f zyz) : full_inst_ty in env2]
+[(zyz f) in env1  -- test pass-through of failure in function
+ (f zyz) in env1 -- test pass-through of failure in arg]
+(zyz zyz)
+
+*)
+
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, app_exp1);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env1, app_exp2);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, app_exp3);
+        TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, envp, app_exp4);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, app_exp5);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, [("xx",([],TyVar(-4)))], (AppExp(VarExp "xx", AppExp(VarExp "xx", ConstExp (IntConst 7)))));
+	TEST1ARG_TWOFUN(1, canon_list_gather, canon_list_gather_stu,
+          [(env3, app_exp3, int_ty); (env2, app_exp3, int_ty); (env3, app_exp6, full_inst_ty)]);
+        TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, (AppExp(var_exp2, var_exp2)));
+
+
+
+(* raise if true then 62 else 252 : ’b
+   raise true (2pts)
+   raise f in env1
+   raise f in env0 (2pts)
+   (raise 3) : full_inst_ty
+*)
+   
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, raise_exp1);
+	TEST2ARG_TWOFUN(2, infer2_exp, infer2_exp_stu, env2, raise_exp2);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env1, raise_exp3);
+	TEST2ARG_TWOFUN(2, infer2_exp, infer2_exp_stu, env0, raise_exp3);
+	TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env3, raise_exp4, full_inst_ty);
+
+(*
+let x = 7 in x + x
+let ww = 1 in true 
+[let xz = true in xz : bool
+ let xz = true in xz : int (in a environment with xz:int)] 
+let zyz = any in zyz :: zyz (in env2, checking for correct update)
+[let uv = zyz in 1 (in env1)
+ let uv = 1 in zyz (in env1)]  (These test for propogation of failure)
+let id = fun x -> x in if (id true) then (fun id -> id + 1) else id: int -> int
+*)
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, letin_exp1);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, letin_exp2);
+	TEST1ARG_TWOFUN(1, canon_list_gather, canon_list_gather_stu,
+          [(env0, letin_exp3, bool_ty); ([("xz",poly_int_ty)], letin_exp3, bool_ty)]); 
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env2, letin_exp4);
+	TEST1ARG_TWOFUN(1, canon_list_gather, canon_list_gather_stu,
+          [(env1, letin_exp5, int_ty); (env1, letin_exp6, bool_ty)]);
+
+(*
+let rec length = if list = [] then 0 else 1 + (length (tl list) in length (2 :: [])
+[let rec f z = true in 1 :int
+ let rec f z = true in 1 : bool]
+[let rec f z = zyz in 1 in env1
+ let rec f z = 1 in zyz in env1]
+[let rec f z = f (f z) in (f 1, f true) : int * bool
+ let rec f z = f (f z) in ((f true) + 1) : int]
+let rec id x = x in if (id true) then (fun id -> id + 1) else id: int -> int
+
+*)
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, letrecin_exp1);
+	TEST1ARG_TWOFUN(1, canon_list_gather, canon_list_gather_stu,
+          [(env1, letrecin_exp2, int_ty); (env1, letrecin_exp2, bool_ty)]);
+	TEST1ARG_TWOFUN(1, canon_list_gather, canon_list_gather_stu,
+          [(env1, letrecin_exp3a, TyVar 13); (env1, letrecin_exp3b, TyVar 22)]);
+	TEST1ARG_TWOFUN(1, canon_list_gather, canon_list_gather_stu,
+          [(env1, letrecin_exp4a, mk_pair_ty int_ty bool_ty);
+           (env1, letrecin_exp4b, int_ty)]);
+        TEST3ARG_TWOFUN(1, canon_gather, canon_gather_stu, env0, letrecin_exp5, (mk_fun_ty int_ty int_ty))
+]
+
+(* This list is for extra credit problems *)
+let extra_rubric = [
+(* 
+try ("What" ˆ (raise 3)) with 0 -> " do you mean?" | _ -> " the heck?"
+try zyz with 0 -> 1 in env1
+try true with 0 -> zyz in env1
+try true with 0 -> false | 1 -> zyz in env1
+try true with 0 -> 1
+try true with 0 -> true | _ -> 1
+try zyz  with 0 -> f | _ -> f | 0 -> zyz | 1 -> zyz env3
+*)
+
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, trywith_exp1);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env1, trywith_exp2);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env1, trywith_exp3);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env1, trywith_exp4);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, trywith_exp5);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env0, trywith_exp6);
+	TEST2ARG_TWOFUN(1, infer2_exp, infer2_exp_stu, env3, trywith_exp7)
+]
+
