@@ -17,6 +17,7 @@ let hex = "0x" (numeric | ['a'-'f'])*
 let flt = numeric+ '.' numeric*
 let flt_exp = flt 'e' integer
 let ident = lowercase (lowercase | numeric | ident_spec)*
+let line_comm = "//.*"'\n'
 
 rule token = parse
   | [' ' '\t' '\n'] { token lexbuf }  (* skip over whitespace *)
@@ -75,6 +76,7 @@ rule token = parse
   | flt as k        { FLOAT (float_of_string k)}
   | flt_exp as k    { FLOAT (float_of_string k)}
   | ident as k      { IDENT k}
+  | line_comm       { token lexbuf }
 
 
 
