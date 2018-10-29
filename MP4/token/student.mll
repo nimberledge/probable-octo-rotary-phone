@@ -8,19 +8,31 @@ open Common;;
 
 let numeric = ['0' - '9']
 let lowercase = ['a' - 'z']
+let uppercase = ['A' - 'Z']
 let letter =['a' - 'z' 'A' - 'Z' '_']
 let special= "\\$^.*+?[]"
-let ident_spec = "_'"
+let ident_spec = '_' | "'"
 let integer = numeric +
 let binary = "0b" ['0' - '1'] +
-let hex = "0x" (numeric | ['a'-'f'])*
+let hex = "0x" (numeric | ['a'-'f'])+
 let flt = numeric+ '.' numeric*
 let flt_exp = flt 'e' integer
-let ident = lowercase (lowercase | numeric | ident_spec)*
-let line_comm = "//.*"'\n'
+let ident = lowercase (uppercase | lowercase | numeric | ident_spec)*
+let not_newline = [ '\000' - '\255'] # '\n'
+let any_char = ['\000' - '\255']
+let not_escape = (any_char # ['n' 't' '\\' '\'' '\"' 'r' 'b' ' ' ])
+let line_comm = "//" not_newline* '\n'
+let open_comm = "(*"
+let close_comm = "*)"
+let printable = [ '\032' - '\127'] # ['\"' '\\']
+let zero_to_five = [ '0' - '5' ]
+let zero_to_four = [ '0' - '4' ]
+let ddd = ((['0' - '1' ] numeric numeric) | ('2' ((zero_to_four numeric) | ('5' zero_to_five))))
+let whitespace = [' ' '\t' '\n']
+let split_lines = '\\''\n' (' ' | '\t')*
 
 rule token = parse
-  | [' ' '\t' '\n'] { token lexbuf }  (* skip over whitespace *)
+  | whitespace      { token lexbuf }  (* skip over whitespace *)
   | eof             { EOF }
   | '~'             { NEG }
   | '+'             { PLUS }
@@ -31,7 +43,7 @@ rule token = parse
   | "-."            { DMINUS }
   | "*."            { DTIMES }
   | "/."            { DDIV }
-  | '*'             { CARAT }
+  | '^'             { CARAT }
   | '<'             { LT }
   | '>'             { GT }
   | "<="            { LEQ }
@@ -77,6 +89,30 @@ rule token = parse
   | flt_exp as k    { FLOAT (float_of_string k)}
   | ident as k      { IDENT k}
   | line_comm       { token lexbuf }
+  | open_comm       { comment 1 lexbuf }
+  | close_comm      { raise (Failure "unmatched closed comment") }
+  | '"'             { string "" lexbuf }
+
+and comment num= parse
+  | open_comm       { comment (num+1) lexbuf }
+  | close_comm      { if (num=1) then token lexbuf else comment (num-1) lexbuf }
+  | eof             { raise (Failure "unmatched open comment") }
+  | _               { comment (num) lexbuf }
+and string curr_str = parse
+  | '"'             { STRING (curr_str) }
+  | printable* as k { string (curr_str ^ k) lexbuf }
+  | "\\\\"          { string (curr_str ^ (String.make 1 '\\')) lexbuf }
+  | "\\\'"            { string (curr_str ^ (String.make 1 '\'')) lexbuf }
+  | "\\\""            { string (curr_str ^ (String.make 1 '\"')) lexbuf }
+  | "\\t"            { string (curr_str ^ (String.make 1 '\t')) lexbuf }
+  | "\\n"            { string (curr_str ^ (String.make 1 '\n')) lexbuf }
+  | "\\r"            { string (curr_str ^ (String.make 1 '\r')) lexbuf }
+  | "\\b"            { string (curr_str ^ (String.make 1 '\b')) lexbuf }
+  | "\\ "            { string (curr_str ^ (String.make 1 ' ') ) lexbuf }
+  | '\\' ddd as k   { string (curr_str ^ (String.make 1 (char_of_int (int_of_string (String.sub k 1 3))))) lexbuf }
+  | split_lines     { string (curr_str) lexbuf }
+  | "\\"_           { raise (Failure "illegal escape sequence")}
+
 
 
 
